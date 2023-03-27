@@ -1,0 +1,190 @@
+from pygame.locals import QUIT, K_ESCAPE, K_q, K_RETURN, K_a, K_s, K_d, K_w, K_j, K_k, K_l, K_i
+from game import Environment
+import pygame
+import argparse
+
+
+class Input():
+
+    UP = 1
+    DOWN = 2
+    RIGHT = 4
+    LEFT = 8
+
+    UPDOWNAXIS = 1
+    LEFTRIGHTAXIS = 0
+    ABUTTON = 0
+    BBUTTON = 1
+    XBUTTON = 2
+    YBUTTON = 3
+    BACKBUTTON = 6
+    STARTBUTTON = 7
+
+    def __init__(self):
+        pygame.init()
+        pygame.joystick.init()
+        self.has_joystick = False
+
+        if pygame.joystick.get_count() > 0:
+            self.joystick = pygame.joystick.Joystick(0)
+
+            print("Using joystick: ", self.joystick.get_name())
+            self.has_joystick = True
+            self.joystick.init()
+
+
+    def __bin_to_cardinal(self, direction):
+
+
+        if direction == 0:
+            response = 0
+        elif direction == self.UP:
+            response = 1
+        elif direction == self.UP | self.RIGHT:
+            response = 2
+        elif direction == self.RIGHT:
+            response = 3
+        elif direction == self.DOWN | self.RIGHT:
+            response = 4
+        elif direction == self.DOWN:
+            response = 5
+        elif direction == self.DOWN | self.LEFT:
+            response = 6
+        elif direction == self.LEFT:
+            response = 7
+        elif direction == self.UP | self.LEFT:
+            response = 8
+        else:
+            response = 0
+
+        return response
+
+    def read_controller(self):
+
+        if not self.has_joystick:
+            raise Exception('Joystick not attached.')
+
+        pygame.event.pump()
+
+        start = self.joystick.get_button(self.STARTBUTTON)
+        back = self.joystick.get_button(self.BACKBUTTON)
+        axis0 = self.joystick.get_axis(self.UPDOWNAXIS)
+        axis1 = self.joystick.get_axis(self.LEFTRIGHTAXIS)
+
+        left = 0
+        if axis0 > 0.5:
+            left |= self.DOWN
+        if axis0 < -0.5:
+            left |= self.UP
+        if axis1 > 0.5:
+            left |= self.RIGHT
+        if axis1 < -0.5:
+            left |= self.LEFT
+
+        a_button = self.joystick.get_button(self.ABUTTON)
+        b_button = self.joystick.get_button(self.BBUTTON)
+        x_button = self.joystick.get_button(self.XBUTTON)
+        y_button = self.joystick.get_button(self.YBUTTON)
+
+        right = 0
+        if a_button:
+            right |= self.DOWN
+        if b_button:
+            right |= self.RIGHT
+        if y_button:
+            right |= self.UP
+        if x_button:
+            right |= self.LEFT
+
+        return (
+            self.__bin_to_cardinal(left),
+            self.__bin_to_cardinal(right),
+            start,
+            back,
+        )
+
+    def attached(self):
+
+        return self.has_joystick
+
+    def get(self):
+
+        if self.attached():
+            return self.read_controller()
+
+        pygame.event.pump()
+
+        left = 0
+        right = 0
+        back = False
+        start = False
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                back = True
+
+        keys = pygame.key.get_pressed()
+        if keys[K_ESCAPE] or keys[K_q]:
+            back = True
+
+        if keys[K_RETURN]:
+            start = True
+
+        if keys[K_w]:
+            left |= self.UP
+        elif keys[K_s]:
+            left |= self.DOWN
+        if keys[K_d]:
+            left |= self.RIGHT
+        elif keys[K_a]:
+            left |= self.LEFT
+
+        if keys[K_i]:
+            right |= self.UP
+        elif keys[K_k]:
+            right |= self.DOWN
+        if keys[K_j]:
+            right |= self.LEFT
+        elif keys[K_l]:
+            right |= self.RIGHT
+
+        return (
+            self.__bin_to_cardinal(left),
+            self.__bin_to_cardinal(right),
+            start,
+            back,
+        )
+
+
+def main(level: int = 1, lives: int = 3000, fps: int = 30, godmode: bool = False):
+
+    env = Environment(level=level, lives=lives, fps=fps, godmode=godmode, headless=False)
+    user_input = Input()
+
+    env.reset()
+    try:
+        while True:
+            (left, right, start, back) = user_input.get()
+
+            if back:
+                break
+
+            if start:
+                env.reset()
+
+            action = left * 9 + right
+            print(env.step(action))
+
+    except KeyboardInterrupt:
+        print("Interrupt detected.  Exiting...")
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Rainbow')
+    parser.add_argument('--level', type=int, default=1, help='Start Level')
+    parser.add_argument('--lives', type=int, default=3, help='Lives')
+    parser.add_argument('--fps', type=int, default=30, help='FPS')
+    parser.add_argument('--godmode', action='store_true', help='Enable GOD Mode (Can\'t die.)')
+
+    args = parser.parse_args()
+    main(args.level, args.lives, args.fps, args.godmode)
